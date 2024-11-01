@@ -10,8 +10,7 @@ class Charactercounter {
     }
     public static int counter(String word, char what) {
         int count = 0;
-        String letter = word;
-        for (char havala : letter.toCharArray()) {
+        for (char havala : word.toCharArray()) {
             if (havala == what) {
                 count++;
             }
