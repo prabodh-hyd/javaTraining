@@ -1,22 +1,14 @@
+package in.prabodh;
+
 public class Main {
     public static void main(String[] args) {
-        System.out.println(message("[ERROR]: Invalid operation"));
-        System.out.println(logLevel("[ERROR]: Invalid operation"));
-        System.out.println(reformat("[INFO]: Operation completed"));
-    }
-    public static String message(String logLine) {
-        return logLine.split(": ", 2)[1].trim();
-    }
+        Printing<Double> printer = new Printing<>(352.14);
+        printer.printInteger();
 
-    public static String logLevel(String logLine) {
-        String[] parts = logLine.split(": ", 2);
-        String bracket = parts[0];
-        return bracket.substring(1, bracket.length() - 1).toLowerCase();
-    }
+        Printing<Integer> integerPrinting = new Printing<>(352);
+        integerPrinting.printInteger();
 
-    public static String reformat(String logLine) {
-        String message = message(logLine);
-        String level = logLevel(logLine);
-        return message + " (" + level + ")";
+        Printing<String> stringPrinting = new Printing<>("Testing");
+        stringPrinting.printInteger();
     }
 }
