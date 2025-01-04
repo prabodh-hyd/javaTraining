@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class Main {
 
     private static final Object lock = new Object();
-    private static AtomicInteger executionOrder = new AtomicInteger();
+    private static AtomicInteger executionOrder = new AtomicInteger(); //This is used cause it's thread safe, more study needs to be done on this one...
 
     public static void main(String[] args) {
         Thread thread1 = new Thread(() -> {
@@ -13,13 +13,13 @@ public class Main {
                 System.out.println("Thread 1 waiting...");
                 while (executionOrder.get() != 1) {
                     try {
-                        lock.wait(10); // Wait for a short interval
+                        lock.wait(10);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
                 }
                 System.out.println("Thread 1 resumed.");
-                executionOrder.incrementAndGet(); // Allow next thread to proceed
+                executionOrder.incrementAndGet();
             }
         });
 
@@ -61,14 +61,13 @@ public class Main {
                     lock.notifyAll();
                     executionOrder.set(1);
                     thread1.setPriority(Thread.MAX_PRIORITY);
-                    System.out.println("Thread 4 notified.");
+                    System.out.println("Thread 4 notified all.");
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
         });
 
-        // Set thread priorities (adjust as needed)
 //        thread4.setPriority(Thread.NORM_PRIORITY - 4);
 
         // Start threads
