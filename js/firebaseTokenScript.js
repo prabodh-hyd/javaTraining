@@ -64,62 +64,68 @@ async function getFirebaseToken(jwtToken) {
 
 // Main function to execute the flow in a loop
 async function main() {
-  // Object to store tokens; keys will be iteration numbers i.e; player ID's, values are Firebase tokens
-  let tokens = {};
-
-  // Define the number of iterations; For now I'm going with the 2 iteration to first test on the two people
-  const iterations = 2;
   const usersFilePath = path.join(__dirname, "users.json");
+  const firebaseDataPath = path.join(__dirname, "firebasedata.json");
+  
+  // Load existing data if file exists
+  let tokens = {};
   const usersData = fs.readFileSync(usersFilePath, 'utf8');
-  const playerIds = JSON.parse(usersData);  
+  const playerIds = JSON.parse(usersData);
 
-  // Loop through the number of iterations limit count
-  let requestCount = 500;
+  // Configuration
+  const BATCH_SIZE = 500; // Process 10 requests concurrently
+  const MAX_REQUESTS = 500;
+  
+  // Apply the MAX_REQUESTS limit
+  const idsToProcess = playerIds.slice(0, MAX_REQUESTS);
+  console.log(`Processing ${idsToProcess.length} player IDs (limited by MAX_REQUESTS=${MAX_REQUESTS})`);
+  
+  const startTime = Date.now();
+  console.log(`Starting process at ${new Date().toISOString()}`);
 
-  for (const playerId of playerIds) {
+  // Process in batches to control concurrency
+  for (let i = 0; i < idsToProcess.length; i += BATCH_SIZE) {
+    const batch = idsToProcess.slice(i, i + BATCH_SIZE);
+    console.log(`Processing batch ${Math.floor(i/BATCH_SIZE) + 1}, IDs ${i} to ${i + batch.length - 1}`);
     
-    let i = playerId; // Use the player ID as the key
-
-    requestCount--;
-    if (requestCount < 0) {
-      break;
-    }
-
-    if (requestCount % 100 === 0) {
-      console.log(`Remaining requests: ${requestCount} - playerId: ${playerId}`);
-    }
-
-    try {
-      // First, get the JWT token
-      // This await waits for the respective execution to complete in this case HTTP resquests
-      const jwtToken = await getJwtToken(playerId);
-      
-      console.log(`Iteration ${i}: JWT token received`);
-
-      // Next, use the JWT token to get the Firebase token
-      const firebaseToken = await getFirebaseToken(jwtToken);
-      
-      // Save the Firebase token with iteration number as key because we are going to use them as the corresponsding player ID's.
-      tokens[i] = firebaseToken;
-    } catch (error) {
-      console.error(`Iteration ${i}: An error occurred. Skipping this iteration.`);
-    }
+    const batchPromises = batch.map(async (playerId) => {
+      try {
+        // Get JWT token and Firebase token
+        const jwtToken = await getJwtToken(playerId);
+        const firebaseToken = jwtToken;//await getFirebaseToken(jwtToken);
+        //console.log(`Player ${playerId}: Tokens retrieved successfully`);
+        
+        return { playerId, firebaseToken, success: true };
+      } catch (error) {
+        console.error(`Player ${playerId}: Failed - ${error.message}`);
+        return { playerId, success: false };
+      }
+    });
+    
+    console.log(`Waiting for batch ${Math.floor(i/BATCH_SIZE) + 1} to complete...`);
+    // Wait for all promises in this batch to complete
+    const results = await Promise.all(batchPromises);
+    
+    // Update tokens object with successful results
+    results.forEach(result => {
+      if (result.success) {
+        tokens[result.playerId] = result.firebaseToken;
+      }
+    });
+    
+    // Write incremental update to file after each batch
+    const jsonData = JSON.stringify(tokens, null, 2);
+    fs.writeFileSync(firebaseDataPath, jsonData);
+    console.log(`Updated firebasedata.json with ${Object.keys(tokens).length} total tokens`);
   }
-  // Doing the pretty print to be more readable and to be more viually appealing.
-  let jsonData = JSON.stringify(tokens, null, 2);
-
-  // Print the final JSON object
-  console.log("Final tokens JSON:", jsonData);
-  // Getting the current directory we can add the different directory as the second parameter and use mkdir process.
-  const filePath = path.join(__dirname, "firebasedata.json");
-
-  fs.writeFile(filePath, jsonData, (err) => {
-  if (err) {
-      console.error("Error writing the file:", err);
-  } else {
-      console.log(`JSON file has been saved at: ${filePath}`);
-  }
-  });
+  
+  const endTime = Date.now();
+  const totalDuration = (endTime - startTime) / 1000;
+  const minutes = Math.floor(totalDuration / 60);
+  const seconds = totalDuration % 60;
+  
+  console.log(`Process complete. Collected ${Object.keys(tokens).length} tokens.`);
+  console.log(`Total execution time: ${minutes}m ${seconds.toFixed(2)}s`);
 }
 
 // Execute the main function
