@@ -5,7 +5,8 @@ const path = require('path');
 // Function to get the JWT token from the first request
 async function getJwtToken(player) {
   // Replace the URL and request body with your actual endpoint and payload
-  const jwtUrl = 'http://localhost:9010/api/v1/auth/verify_otp';
+  //const jwtUrl = 'http://localhost:9010/api/v1/auth/verify_otp';
+  const jwtUrl = 'https://bluboy.ddns.net/test1/api/v1/auth/verify_otp'; // Replace with your actual URL
   const jwtPayload = {
         otp: "1234",
         player_id: player,
@@ -68,18 +69,36 @@ async function main() {
 
   // Define the number of iterations; For now I'm going with the 2 iteration to first test on the two people
   const iterations = 2;
+  const usersFilePath = path.join(__dirname, "users.json");
+  const usersData = fs.readFileSync(usersFilePath, 'utf8');
+  const playerIds = JSON.parse(usersData);  
 
-  for (let i = 1; i <= iterations; i++) {
+  // Loop through the number of iterations limit count
+  let requestCount = 500;
+
+  for (const playerId of playerIds) {
+    
+    let i = playerId; // Use the player ID as the key
+
+    requestCount--;
+    if (requestCount < 0) {
+      break;
+    }
+
+    if (requestCount % 100 === 0) {
+      console.log(`Remaining requests: ${requestCount} - playerId: ${playerId}`);
+    }
+
     try {
       // First, get the JWT token
       // This await waits for the respective execution to complete in this case HTTP resquests
-      const jwtToken = await getJwtToken(i);
+      const jwtToken = await getJwtToken(playerId);
+      
       console.log(`Iteration ${i}: JWT token received`);
 
       // Next, use the JWT token to get the Firebase token
       const firebaseToken = await getFirebaseToken(jwtToken);
-      console.log(`Iteration ${i}: Firebase token received`);
-
+      
       // Save the Firebase token with iteration number as key because we are going to use them as the corresponsding player ID's.
       tokens[i] = firebaseToken;
     } catch (error) {
