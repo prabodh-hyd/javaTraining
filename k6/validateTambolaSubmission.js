@@ -4,8 +4,21 @@ import { check } from 'k6';
 
 // Load firebasedata.json once at the top level (not VU-specific)
 const tokens = JSON.parse(open('firebasedata.json'));
-const ids = JSON.parse(open(`getTambolaTicket.json`));
+const ids = JSON.parse(open('getTambolaTicket.json'));
 const players = JSON.parse(open('players.json'));
+// Attempt to load games.json ONCE
+let games = null; // Initialize games variable in init context
+let gamesLoadError = null; // Variable to store potential loading error message
+try {
+    games = JSON.parse(open('games.json'));
+    // Optional: Log success only if needed during debugging
+    // console.log("Init context: Successfully loaded and parsed games.json");
+} catch (e) {
+    gamesLoadError = e.message; // Store the error message
+    // Log the error ONCE during init
+    console.error(`Init context ERROR: Could not load or parse games.json - ${gamesLoadError}. VUs will use default score_id.`);
+    // 'games' remains null
+}
 
 export default function () {
     // Get the player ID for this VU inside the default function
@@ -18,7 +31,7 @@ export default function () {
     }
 
     if (tokens === null) {
-        console.log(`VU ${__VU} - Error: Couldn’t load tokens.json. Check if it exists in /home/prabodh/create/`);
+        console.log(`VU ${__VU} - Error: Couldn’t load firebasedata.json. Check if it exists in /home/prabodh/create/k6/`);
         return;  // Exit the function gracefully
     }
 
@@ -32,9 +45,34 @@ export default function () {
 
     const tournament_id = ids[playerId]["tournament_id"];
     const subscription_id = ids[playerId]["subscription_id"];
-    const lifepackId = ids[playerId]["lifepackId"];
+    const lifepackIdValue = ids[playerId]["lifepackId"];
+    const lifepackId = lifepackIdValue == null ? 0 : lifepackIdValue; // Use 0 if null or undefined
     const ticket_id = ids[playerId]["ticket-id"];
-
+    // --- Determine score_id using data loaded in init context ---
+    let score_id;
+    // Check if games loaded successfully *and* if the player/score_id exists
+    if (games && games[playerId] && games[playerId]["score_id"] !== undefined) {
+        // Successfully loaded games.json in init, and player/score_id exists
+        score_id = games[playerId]["score_id"];
+    } else {
+        // Need to determine *why* we're using the default
+        if (gamesLoadError) {
+            // Log specific reason: File failed to load in init
+            // This log will appear **per iteration** if the file failed to load initially.
+            // Consider if you want this per-iteration log or rely on the init context log.
+             console.log(`VU ${__VU} - Warning: games.json failed to load during init (${gamesLoadError}). Using default score_id 300.`);
+        } else if (!games) {
+             // Should not happen if gamesLoadError logic is correct, but as safety.
+             console.log(`VU ${__VU} - Warning: games data is unexpectedly null. Using default score_id 300.`);
+        } else if (!games[playerId]) {
+            // Log specific reason: Player data missing in the loaded file
+            console.log(`VU ${__VU} - Warning: Player ${playerId} not found in loaded games.json. Using default score_id 300.`);
+        } else { // games[playerId]['score_id'] === undefined
+            // Log specific reason: Score ID missing for the player in the loaded file
+            console.log(`VU ${__VU} - Warning: Player ${playerId} found, but score_id is missing in loaded games.json. Using default score_id 300.`);
+        }
+        score_id = 300; // Assign default value
+    }
     const gameurl = 'http://localhost:9012/api/v1/game/tambola/validate';
 
     const params = {
@@ -52,7 +90,7 @@ export default function () {
         "claim_type": "THIRD_ROW",
         "tournament_id": tournament_id,
         "subscription_id": subscription_id,
-        "score_id": 300,
+        "score_id": score_id,
         "last_callout_index": 90,
         "lifepack_id": lifepackId
     });
